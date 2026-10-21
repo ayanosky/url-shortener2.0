@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"math/rand/v2"
 	"net/http"
 	"sync"
 )
@@ -20,6 +21,29 @@ var (
 	mu    sync.RWMutex
 	links = map[string]string{}
 )
+
+func generateCodeFast(n int) string {
+	b := make([]byte, n)
+	const (
+		alphabet     = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+		letterIdBits = 6                   // 6 бит на символ (2^6 = 64)
+		letterIdMask = 1<<letterIdBits - 1 // Маска 00111111 (63)
+		letterIdMax  = 63 / letterIdBits   // Сколько индексов умещается в одном uint64 (10)
+	)
+
+	for i, cache, remain := n-1, rand.Uint64(), letterIdMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = rand.Uint64(), letterIdMax
+		}
+		if idx := int(cache & letterIdMask); idx < len(alphabet) {
+			b[i] = alphabet[idx]
+			i--
+		}
+		cache >>= letterIdBits
+		remain--
+	}
+	return string(b)
+}
 
 func main() {
 	mux := http.NewServeMux()
@@ -44,8 +68,7 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: проверить, что URL не пустой и валидный (net/url)
-	// TODO: сгенерировать случайный код вместо заглушки
-	code := "abc123"
+	code := generateCodeFast(6)
 
 	mu.Lock()
 	links[code] = req.URL

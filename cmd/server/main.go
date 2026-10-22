@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
 	"sync"
 )
 
@@ -21,6 +24,27 @@ var (
 	mu    sync.RWMutex
 	links = map[string]string{}
 )
+
+var ErrInvalidURL = errors.New("invalid url")
+
+func ValidateURL(rawURL string) error {
+	// ParseRequestURI требует, чтобы строка была абсолютным URI,
+	// то есть обязательно начиналась со схемы (например, http://)
+	u, err := url.ParseRequestURI(rawURL)
+	if err != nil {
+		return fmt.Errorf("%w: malformed url", ErrInvalidURL)
+	}
+
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("%w: scheme must be http or https", ErrInvalidURL)
+	}
+
+	if u.Host == "" {
+		return fmt.Errorf("%w: host is empty", ErrInvalidURL)
+	}
+
+	return nil
+}
 
 func generateCodeFast(n int) string {
 	b := make([]byte, n)
@@ -67,7 +91,11 @@ func shortenHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: проверить, что URL не пустой и валидный (net/url)
+	if err := ValidateURL(req.URL); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	code := generateCodeFast(6)
 
 	mu.Lock()

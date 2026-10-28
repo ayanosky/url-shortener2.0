@@ -1,0 +1,23 @@
+name: url-shortener
+
+services:
+  db:
+    image: postgres:18
+    container_name: pg-shortener
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: shortener
+      POSTGRES_PASSWORD: shortener
+      POSTGRES_DB: shortener
+    volumes:
+      - pg_shortener_data:/var/lib/postgresql
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shortener -d shortener"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pg_shortener_data:

@@ -1,16 +1,36 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/ayanosky/url-shortener2.0/internal/handler"
 	"github.com/ayanosky/url-shortener2.0/internal/service"
 	"github.com/ayanosky/url-shortener2.0/internal/storage"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
-	store := storage.NewMemory()
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		log.Fatal("DATABASE_URL is not set")
+	}
+
+	ctx := context.Background()
+
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		log.Fatalf("connect to db: %v", err)
+	}
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		log.Fatalf("ping db: %v", err)
+	}
+
+	store := storage.NewPostgres(pool)
 	svc := service.New(store)
 	h := handler.New(svc)
 

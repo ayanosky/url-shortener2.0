@@ -38,6 +38,7 @@ func main() {
 	mux.HandleFunc("GET /health", h.Health)
 	mux.HandleFunc("POST /shorten", h.Shorten)
 	mux.HandleFunc("GET /{code}", h.Redirect)
+	mux.HandleFunc("GET /stats/{code}", h.Stats)
 
 	log.Println("listening on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))

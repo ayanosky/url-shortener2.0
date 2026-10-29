@@ -17,10 +17,16 @@ const (
 )
 
 var (
-	ErrInvalidURL = errors.New("invalid url")
-
+	ErrInvalidURL     = errors.New("invalid url")
+	ErrNotFound       = errors.New("link not found")
 	ErrCodeGeneration = errors.New("could not generate unique code")
 )
+
+type LinkStats struct {
+	Code   string
+	URL    string
+	Clicks int
+}
 
 func validateURL(rawURL string) error {
 	// ParseRequestURI требует, чтобы строка была абсолютным URI,
@@ -93,10 +99,21 @@ func (s *Service) Shorten(ctx context.Context, rawURL string) (string, error) {
 	return "", ErrCodeGeneration
 }
 
-func (s *Service) Resolve(ctx context.Context, code string) (string, error) {
+func (s *Service) getLink(ctx context.Context, code string) (storage.Link, error) {
 	link, err := s.store.Get(ctx, code)
 	if err != nil {
-		return "", fmt.Errorf("get link: %w", err)
+		if errors.Is(err, storage.ErrNotFound) {
+			return storage.Link{}, ErrNotFound
+		}
+		return storage.Link{}, fmt.Errorf("get link: %w", err)
+	}
+	return link, nil
+}
+
+func (s *Service) Resolve(ctx context.Context, code string) (string, error) {
+	link, err := s.getLink(ctx, code)
+	if err != nil {
+		return "", err
 	}
 
 	if err := s.store.IncrementClicks(ctx, code); err != nil {
@@ -104,4 +121,12 @@ func (s *Service) Resolve(ctx context.Context, code string) (string, error) {
 	}
 
 	return link.URL, nil
+}
+
+func (s *Service) Stats(ctx context.Context, code string) (LinkStats, error) {
+	link, err := s.getLink(ctx, code)
+	if err != nil {
+		return LinkStats{}, err
+	}
+	return LinkStats{Code: link.Code, URL: link.URL, Clicks: link.Clicks}, nil
 }

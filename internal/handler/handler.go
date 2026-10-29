@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/ayanosky/url-shortener2.0/internal/service"
-	"github.com/ayanosky/url-shortener2.0/internal/storage"
 )
 
 type Handler struct {
@@ -24,6 +23,12 @@ type shortenRequest struct {
 
 type shortenResponse struct {
 	Code string `json:"code"`
+}
+
+type statsResponse struct {
+	Code   string `json:"code"`
+	URL    string `json:"url"`
+	Clicks int    `json:"clicks"`
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +62,7 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 
 	rawURL, err := h.svc.Resolve(r.Context(), code)
 	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
+		if errors.Is(err, service.ErrNotFound) {
 			http.NotFound(w, r)
 			return
 		}
@@ -69,7 +74,22 @@ func (h *Handler) Redirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, rawURL, http.StatusFound)
 }
 
-// TODO (день 4): Stats для GET /stats/{code}
+func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
+	code := r.PathValue("code")
+
+	stats, err := h.svc.Stats(r.Context(), code)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		slog.Error("stats failed", "code", code, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, statsResponse{Code: stats.Code, URL: stats.URL, Clicks: stats.Clicks})
+}
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")

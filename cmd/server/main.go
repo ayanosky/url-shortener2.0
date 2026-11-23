@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -31,7 +34,8 @@ func run() error {
 
 	slog.SetDefault(newLogger(cfg.LogLevel))
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -59,8 +63,31 @@ func run() error {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	slog.Info("server started", "addr", srv.Addr)
-	return srv.ListenAndServe()
+	errCh := make(chan error, 1)
+	go func() {
+		slog.Info("server started", "addr", srv.Addr)
+		errCh <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-errCh:
+		// сервер упал сам (например, порт занят)
+		return err
+	case <-ctx.Done():
+		slog.Info("shutting down")
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("shutdown failed: %w", err)
+	}
+	if err := <-errCh; !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	slog.Info("server stopped")
+	return nil
 }
 
 func newLogger(level string) *slog.Logger {

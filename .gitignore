@@ -1,3 +1,28 @@
 # вспомогательные файлы для себя
 for_me.go
 for_me.txt
+
+# Бинарники
+/bin/
+/server
+*.exe
+
+# Переменные окружения с реальными значениями
+.env
+.env.local
+
+# Отчёты о покрытии тестами
+*.out
+coverage.html
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Логи и временные файлы
+*.log
+tmp/
